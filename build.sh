@@ -12,6 +12,14 @@ git submodule update
 set -e 
 cd `dirname $0`
 
+
+echo ############################################################
+echo EXTERNAL_REL_BUILDROOT: ${EXTERNAL_REL_BUILDROOT}
+echo AESD_MODIFIED_DEFCONFIG: ${AESD_MODIFIED_DEFCONFIG}
+echo AESD_MODIFIED_DEFCONFIG_REL_BUILDROOT: ${AESD_MODIFIED_DEFCONFIG_REL_BUILDROOT}
+echo ############################################################
+
+
 if [ ! -e buildroot/.config ]
 then
 	echo -e "\n MISSING BUILDROOT CONFIGURATION FILE \n"
