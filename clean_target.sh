@@ -2,9 +2,9 @@
 
 TARGET=buildroot/output/target
 
-if [ -f "$TARGET" ]
+if [ -d "$TARGET" ]
 then
-rm -rf buildroot/output/target
+rm -Rf buildroot/output/target
 fi
 
 find buildroot/output/ -name ".stamp_target_installed" |xargs rm -rf
