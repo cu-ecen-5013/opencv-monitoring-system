@@ -1,7 +1,7 @@
 # ECEN 5713 AESD Final-Project Repository (OpenCV Monitoring System: Server-Repo)
 Author: Julian Abbott-Whitley
 
-Application code to be used with the custom Linux distribution for Raspberry Pi 4 using Buildroot
+OpenCV and Client/Server application code to be used with the custom Linux distribution built for Raspberry Pi4 using Buildroot
 
 [Project Overview Wiki Page](https://github.com/cu-ecen-5013/final-project-abbottwhitley/wiki)
 
