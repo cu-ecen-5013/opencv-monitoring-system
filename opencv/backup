@@ -1,0 +1,59 @@
+# Name: Makefile
+# Description: makefile for final project for ECEN 5013 AESD
+
+VPATH = -I/home/abbottjc/CU_Boulder/opencv/modules/objdetect/include
+VPATH += -I/home/abbottjc/CU_Boulder/opencv/modules/core/include
+VPATH += -I/home/abbottjc/CU_Boulder/opencv/build/
+VPATH += -I/home/abbottjc/CU_Boulder/opencv/modules/highgui/include/
+VPATH += -I/home/abbottjc/CU_Boulder/opencv/modules/imgcodecs/include
+VPATH += -I/home/abbottjc/CU_Boulder/opencv/modules/videoio/include
+VPATH += -I/home/abbottjc/CU_Boulder/opencv/modules/imgproc/include/
+
+ifeq ($(CC),)
+	CC = $(CROSS_COMPILE)g++
+endif
+
+ifeq ($(LD),)
+	LD = ld  # Linker
+endif
+
+ifeq ($(CCFLAGS),)
+#	CCFLAGS = -O0 -g -Wall -Werror -lstdc++ $(VPATH)
+	CCFLAGS = -O0 -g -Wall -Werror -lstdc++ `pkg-config --cflags opencv`
+#	CCFLAGS = -O0 -g -Wall -Werror `pkg-config --cflags opencv`
+endif
+
+ifeq ($(LDFLAGS),)
+	LDFLAGS = -pthread -lrt
+endif
+
+
+CPPLIBS= -lopencv_core -lopencv_flann -lopencv_video 
+
+#HFILES= 
+#CFILES= 
+CPPFILES= facedetect.cpp
+
+SRCS= ${HFILES} ${CFILES}
+CPPOBJS= ${CPPFILES:.cpp=.o}
+
+
+
+all:	facedetect
+
+clean:
+	-rm -f *.o *.d
+	-rm -f facedetect
+
+distclean:
+	-rm -f *.o *.d
+
+facedetect: facedetect.o
+	$(CC) $(LDFLAGS) $(CCFLAGS) -o $@ $@.o `pkg-config --libs opencv` $(CPPLIBS) 
+depend:
+
+.c.o:
+	$(CC) $(CCFLAGS) -c $<
+
+.cpp.o:
+	$(CC) $(CCFLAGS) -c $<
