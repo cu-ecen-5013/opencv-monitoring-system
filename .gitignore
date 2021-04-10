@@ -1,2 +1,5 @@
-# Buildroot Download Directory *
-buildroot_dl
+# Output files from source code testing
+opencv_stream/client/client
+opencv_stream/client/client.o
+opencvcam/cap.png
+
