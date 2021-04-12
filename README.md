@@ -8,7 +8,7 @@ OpenCV and Client/Server application code to be used with the custom Linux distr
 [Project Schedule Page](https://github.com/cu-ecen-5013/final-project-abbottwhitley/wiki/Project-Schedule)
 
 
-This repo contains sample cod referenced from the following resources
+This repo contains sample code referenced from the following resources
 
 - [OpenCV](https://github.com/opencv/)
 - [OpenCV video streaming over TCP/IP (C++)](https://gist.github.com/Tryptich/2a15909e384b582c51b5)
