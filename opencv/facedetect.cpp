@@ -236,6 +236,7 @@ void detectAndDraw( Mat& img, CascadeClassifier& cascade,
                        color, 3, 8, 0);
         if( nestedCascade.empty() )
             continue;
+        cout << "Face detected";
         smallImgROI = smallImg( r );
         nestedCascade.detectMultiScale( smallImgROI, nestedObjects,
             1.1, 2, 0
@@ -253,5 +254,5 @@ void detectAndDraw( Mat& img, CascadeClassifier& cascade,
             circle( img, center, radius, color, 3, 8, 0 );
         }
     }
-    imshow( "result", img );
+//    imshow( "result", img );
 }

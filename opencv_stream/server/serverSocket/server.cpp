@@ -1,4 +1,4 @@
-/**
+ /**
  * OpenCV video streaming over TCP/IP
  * Server: Captures video from a webcam and send it to a client
  * by Isaac Maia
@@ -15,34 +15,50 @@
 
 using namespace cv;
 
+typedef struct
+{
+	int dev;
+	int imgSize;
+	Mat img;
+	Mat imgGray;
+	VideoCapture *cap; // open the default camera
+} VideoStream;
+
+
+typedef struct
+{
+	int remoteSocket;
+	VideoStream *vidStream;
+
+} SocketStream;
+
 void *display(void *);
-
-int capDev = 0;
-
-    VideoCapture cap(capDev); // open the default camera
-    
-
-   
-
+void *capture_video(void *);
+void setup_img(VideoStream *);
 
 int main(int argc, char** argv)
-{   
+{
 
     //--------------------------------------------------------
     //networking stuff: socket, bind, listen
     //--------------------------------------------------------
-    int                 localSocket,
-                        remoteSocket,
-                        port = 4099; //4097
+    int localSocket;
+    int remoteSocket;
+    int port;
+
+    VideoStream vidStream;
+    vidStream.dev = 0;
+    vidStream.cap = new VideoCapture(vidStream.dev);
+
+    port = *argv[1];
 
     struct  sockaddr_in localAddr,
                         remoteAddr;
+
+    pthread_t camera_processor_tid;
     pthread_t thread_id;
-    
-           
     int addrLen = sizeof(struct sockaddr_in);
 
-       
     if ( (argc > 1) && (strcmp(argv[1],"-h") == 0) ) {
           std::cerr << "usage: ./cv_video_srv [port] [capture device]\n" <<
                        "port           : socket port (4097 default)\n" <<
@@ -51,12 +67,13 @@ int main(int argc, char** argv)
           exit(1);
     }
 
+
     if (argc == 2) port = atoi(argv[1]);
 
     localSocket = socket(AF_INET , SOCK_STREAM , 0);
     if (localSocket == -1){
          perror("socket() call failed!!");
-    }    
+    }
 
     localAddr.sin_family = AF_INET;
     localAddr.sin_addr.s_addr = INADDR_ANY;
@@ -66,12 +83,16 @@ int main(int argc, char** argv)
          perror("Can't bind() socket");
          exit(1);
     }
-    
+
     //Listening
     listen(localSocket , 3);
-    
     std::cout <<  "Waiting for connections...\n"
               <<  "Server Port:" << port << std::endl;
+
+    // Initialize video structure Img and ImgGrey instances
+    setup_img(&vidStream);
+    // Create thread to capture image frames
+    pthread_create(&camera_processor_tid, NULL, capture_video, &vidStream);
 
     //accept connection from an incoming client
     while(1){
@@ -79,15 +100,17 @@ int main(int argc, char** argv)
     //    perror("accept failed!");
     //    exit(1);
     //}
-       
-     remoteSocket = accept(localSocket, (struct sockaddr *)&remoteAddr, (socklen_t*)&addrLen);  
+     SocketStream *newSocket = new SocketStream;
+     newSocket->remoteSocket = accept(localSocket, (struct sockaddr *)&remoteAddr, (socklen_t*)&addrLen);
+     newSocket->vidStream = &vidStream;
       //std::cout << remoteSocket<< "32"<< std::endl;
     if (remoteSocket < 0) {
         perror("accept failed!");
         exit(1);
-    } 
+    }
     std::cout << "Connection accepted" << std::endl;
-     pthread_create(&thread_id,NULL,display,&remoteSocket);
+//    pthread_create(&thread_id,NULL,display,&newSocket->remoteSocket);
+    pthread_create(&thread_id,NULL,display,newSocket);
 
      //pthread_join(thread_id,NULL);
 
@@ -98,42 +121,55 @@ int main(int argc, char** argv)
     return 0;
 }
 
-void *display(void *ptr)
-{
-    int socket = *(int *)ptr;
-    //OpenCV Code
-    //----------------------------------------------------------
 
-    Mat img, imgGray;
-    img = Mat::zeros(480 , 640, CV_8UC1);   
-     //make it continuous
-    if (!img.isContinuous()) {
-        img = img.clone();
+void setup_img(VideoStream *vStream)
+{
+    // Initialize img object
+    vStream->img = Mat::zeros(480 , 640, CV_8UC1);
+    // Calculate image size
+
+    if (!vStream->img.isContinuous())
+    {
+	vStream->img = vStream->img.clone();
     }
 
-    int imgSize = img.total() * img.elemSize();
-    int bytes = 0;
-    int key;
-    
+
+    vStream->imgSize = vStream->img.total() * vStream->img.elemSize();
 
     //make img continuos
-    if ( ! img.isContinuous() ) { 
-          img = img.clone();
-          imgGray = img.clone();
+    if ( !vStream->img.isContinuous() ) 
+    {
+          vStream->img = vStream->img.clone();
+          vStream->imgGray = vStream->img.clone();
     }
-        
-    std::cout << "Image Size:" << imgSize << std::endl;
 
-    while(1) {
-                
-            /* get a frame from camera */
-                cap >> img;
-            
-                //do video processing here 
-                cvtColor(img, imgGray, CV_BGR2GRAY);
+    std::cout << "Image Setup Complete" << std::endl <<
+		 "Image Size: " << vStream->imgSize << std::endl;
+}
 
-                //send processed image
-                if ((bytes = send(socket, imgGray.data, imgSize, 0)) < 0){
+void *capture_video(void *ptr)
+{
+    // Obtain video structure attributes
+    VideoStream *vStream = (VideoStream*) ptr;
+    while(1)
+    {
+	// Capture frame
+	*(vStream->cap) >> vStream->img;
+	// Convert Color to grey
+	cvtColor(vStream->img, vStream->imgGray, CV_BGR2GRAY);
+    }
+}
+
+void *display(void *ptr)
+{
+    int bytes = 0;
+    SocketStream *sStream = (SocketStream*) ptr;
+    int socket = sStream->remoteSocket;
+
+    while(1)
+    {
+                //send current frame
+		if ((bytes = send(socket, sStream->vidStream->imgGray.data, sStream->vidStream->imgSize, 0)) < 0){
                      std::cerr << "bytes = " << bytes << std::endl;
                      break;
                 } else {
