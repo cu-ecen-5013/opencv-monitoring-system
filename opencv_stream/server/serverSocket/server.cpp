@@ -1,16 +1,26 @@
- /**
- * OpenCV video streaming over TCP/IP
- * Server: Captures video from a webcam and send it to a client
- * by Isaac Maia
- */
+/**************************************************************************************************
+* @file        server.cpp
+* @version     0.1.1
+* @type:       OpenCV Video streaming socket application
+* @brief       OpenCV application that provides video stream to client requests.
+ 		  - Main Thread: Generate video stream and write image data to a global structure
+ 		  - Innitializes a socket connection to support client requests for video stream
+ 		  - Each client request is handled by a separate thread
+* @author      Julian Abbott-Whitley (julian.abbott-whitley@Colorado.edu)
+* @license:    GNU GPLv3   (attached below)
+*
+* @references: The following sources were referenced during development
+*              https://gist.github.com/Tryptich/2a15909e384b582c51b5
+*
+**************************************************************************************************/
 
 #include "opencv2/opencv.hpp"
 #include <iostream>
-#include <sys/socket.h> 
+#include <sys/socket.h>
 #include <arpa/inet.h>
 #include <sys/ioctl.h>
 #include <net/if.h>
-#include <unistd.h> 
+#include <unistd.h>
 #include <string.h>
 
 using namespace cv;
@@ -22,19 +32,18 @@ typedef struct
 	Mat img;
 	Mat imgGray;
 	VideoCapture *cap; // open the default camera
-} VideoStream;
+} ImgCaptureStruct;
 
 
 typedef struct
 {
 	int remoteSocket;
-	VideoStream *vidStream;
-
-} SocketStream;
+	ImgCaptureStruct *imgStruct;
+} VideoStream;
 
 void *display(void *);
 void *capture_video(void *);
-void setup_img(VideoStream *);
+void setup_img(ImgCaptureStruct *);
 
 int main(int argc, char** argv)
 {
@@ -46,9 +55,9 @@ int main(int argc, char** argv)
     int remoteSocket;
     int port;
 
-    VideoStream vidStream;
-    vidStream.dev = 0;
-    vidStream.cap = new VideoCapture(vidStream.dev);
+    ImgCaptureStruct imgStruct;
+    imgStruct.dev = 0;
+    imgStruct.cap = new VideoCapture(imgStruct.dev);
 
     port = *argv[1];
 
@@ -90,9 +99,9 @@ int main(int argc, char** argv)
               <<  "Server Port:" << port << std::endl;
 
     // Initialize video structure Img and ImgGrey instances
-    setup_img(&vidStream);
+    setup_img(&imgStruct);
     // Create thread to capture image frames
-    pthread_create(&camera_processor_tid, NULL, capture_video, &vidStream);
+    pthread_create(&camera_processor_tid, NULL, capture_video, &imgStruct);
 
     //accept connection from an incoming client
     while(1){
@@ -100,9 +109,9 @@ int main(int argc, char** argv)
     //    perror("accept failed!");
     //    exit(1);
     //}
-     SocketStream *newSocket = new SocketStream;
-     newSocket->remoteSocket = accept(localSocket, (struct sockaddr *)&remoteAddr, (socklen_t*)&addrLen);
-     newSocket->vidStream = &vidStream;
+     VideoStream *newVideoStream = new VideoStream;
+     newVideoStream->remoteSocket = accept(localSocket, (struct sockaddr *)&remoteAddr, (socklen_t*)&addrLen);
+     newVideoStream->imgStruct = &imgStruct;
       //std::cout << remoteSocket<< "32"<< std::endl;
     if (remoteSocket < 0) {
         perror("accept failed!");
@@ -110,7 +119,7 @@ int main(int argc, char** argv)
     }
     std::cout << "Connection accepted" << std::endl;
 //    pthread_create(&thread_id,NULL,display,&newSocket->remoteSocket);
-    pthread_create(&thread_id,NULL,display,newSocket);
+    pthread_create(&thread_id,NULL,display,newVideoStream);
 
      //pthread_join(thread_id,NULL);
 
@@ -121,60 +130,59 @@ int main(int argc, char** argv)
     return 0;
 }
 
-
-void setup_img(VideoStream *vStream)
+// Innitialize Img members of the ImgCaptureStruct
+void setup_img(ImgCaptureStruct *imgStruct)
 {
     // Initialize img object
-    vStream->img = Mat::zeros(480 , 640, CV_8UC1);
+    imgStruct->img = Mat::zeros(480 , 640, CV_8UC1);
     // Calculate image size
-
-    if (!vStream->img.isContinuous())
-    {
-	vStream->img = vStream->img.clone();
-    }
-
-
-    vStream->imgSize = vStream->img.total() * vStream->img.elemSize();
+    imgStruct->imgSize = imgStruct->img.total() * imgStruct->img.elemSize();
 
     //make img continuos
-    if ( !vStream->img.isContinuous() ) 
+    if ( !imgStruct->img.isContinuous() ) 
     {
-          vStream->img = vStream->img.clone();
-          vStream->imgGray = vStream->img.clone();
+          imgStruct->img = imgStruct->img.clone();
+          imgStruct->imgGray = imgStruct->img.clone();
     }
 
     std::cout << "Image Setup Complete" << std::endl <<
-		 "Image Size: " << vStream->imgSize << std::endl;
+		 "Image Size: " << imgStruct->imgSize << std::endl;
 }
 
+// Threa function to write frames from /dev/video# to the ImgCaptureStruct img members
 void *capture_video(void *ptr)
 {
     // Obtain video structure attributes
-    VideoStream *vStream = (VideoStream*) ptr;
+    ImgCaptureStruct *imgStruct = (ImgCaptureStruct*) ptr;
     while(1)
     {
 	// Capture frame
-	*(vStream->cap) >> vStream->img;
+	*(imgStruct->cap) >> imgStruct->img;
 	// Convert Color to grey
-	cvtColor(vStream->img, vStream->imgGray, CV_BGR2GRAY);
+	cvtColor(imgStruct->img, imgStruct->imgGray, CV_BGR2GRAY);
     }
 }
 
+// Thread function to send img
 void *display(void *ptr)
 {
     int bytes = 0;
-    SocketStream *sStream = (SocketStream*) ptr;
-    int socket = sStream->remoteSocket;
+    VideoStream *vStream = (VideoStream*) ptr;
+    int socket = vStream->remoteSocket;
 
     while(1)
     {
-                //send current frame
-		if ((bytes = send(socket, sStream->vidStream->imgGray.data, sStream->vidStream->imgSize, 0)) < 0){
-                     std::cerr << "bytes = " << bytes << std::endl;
-                     break;
-                } else {
-		     std::cout << "Bytes Sent: " << bytes << std::endl;
-		}
+	usleep(10000);
+        //send current frame
+	if ((bytes = send(socket, vStream->imgStruct->imgGray.data, vStream->imgStruct->imgSize, 0)) < 0)
+	{
+            std::cerr << "bytes = " << bytes << std::endl;
+            break;
+        }
+	else
+	{
+	    std::cout << "Bytes Sent: " << bytes << std::endl;
+	}
     }
 
 return 0;

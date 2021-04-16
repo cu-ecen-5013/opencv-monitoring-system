@@ -23,7 +23,7 @@ while(1):
         imgData = np.fromstring(x, dtype='uint8')
         if (imgData.size == 307200):
             img = imgData.reshape([480, 640])
-            cv2.imshow('frame', img)
+            cv2.imshow('Python OPENCV Video Client', img)
             if cv2.waitKey(1) == ord('q'):
                 break
         else:

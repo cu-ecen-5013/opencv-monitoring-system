@@ -65,7 +65,7 @@ int main(int argc, char** argv)
     std::cout << "Image Size:" << imgSize << std::endl;
 
 
-    namedWindow("CV Video Client",1);
+    namedWindow("C++ OPENCV Video Client",1);
 
     while (key != 'q') {
 
@@ -73,7 +73,7 @@ int main(int argc, char** argv)
             std::cerr << "recv failed, received bytes = " << bytes << std::endl;
         }
         
-        cv::imshow("CV Video Client", img); 
+        cv::imshow("C++ OPENCV Video Client", img); 
       
         if (key = cv::waitKey(10) >= 0) break;
     }   
