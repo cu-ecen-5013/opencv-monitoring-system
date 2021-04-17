@@ -1,5 +1,6 @@
 # Output files from source code testing
 *.o
+testing
 opencv_stream/client/client
 opencv_stream/client/client.o
 opencvcam/cap.png
