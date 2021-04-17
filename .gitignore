@@ -6,6 +6,6 @@ opencvcam/cap.png
 opencv_stream/client/python/__pycache__/
 opencv_stream/server/serverOriginal/
 
-client
-server
+opencv_stream/client/cpp/client
+opencv_stream/server/server
 __pycache__

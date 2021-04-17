@@ -11,7 +11,7 @@ HTML_PORT= '5000'
 
 # localhost config
 LOCAL_HOST = '127.0.0.1'
-LOCAL_PORT = 4098
+LOCAL_PORT = 4099
 
 @app.route('/')
 def index():

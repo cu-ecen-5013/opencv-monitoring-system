@@ -172,7 +172,7 @@ void *display(void *ptr)
 
     while(1)
     {
-	usleep(1000);
+	usleep(30000);
         //send current frame
 	if ((bytes = send(socket, vStream->imgStruct->imgGray.data, vStream->imgStruct->imgSize, 0)) < 0)
 	{
