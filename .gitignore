@@ -1,7 +1,11 @@
 # Output files from source code testing
-*.0
+*.o
 opencv_stream/client/client
 opencv_stream/client/client.o
 opencvcam/cap.png
 opencv_stream/client/python/__pycache__/
 opencv_stream/server/serverOriginal/
+
+client
+server
+__pycache__
