@@ -13,6 +13,7 @@ gw = os.popen("ip -4 route show default").read().split()
 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 s.connect((gw[2], 0))
 HTML_IPADDR = s.getsockname()[0]
+#HTML_IPADDR = '127.0.0.1'
 HTML_PORT='5000'
 s.close()
 

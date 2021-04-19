@@ -22,7 +22,7 @@ endif
 
 #HFILES= 
 #CFILES= 
-CPPFILES= facedetect.cpp
+CPPFILES= server.cpp
 
 #CPPLIBS= `pkg-config --libs opencv` -lopencv_core -lopencv_flann -lopencv_video -lstdc++
 CPPLIBS= `pkg-config --libs opencv` -lstdc++
@@ -40,8 +40,9 @@ clean:
 distclean:
 	-rm -f *.o *.d
 
-server: server.o
+server: server.o 
 	$(CC) $(LDFLAGS) $(CCFLAGS) -pthread -o $@ $@.o  $(CPPLIBS) 
+
 depend:
 
 .c.o:

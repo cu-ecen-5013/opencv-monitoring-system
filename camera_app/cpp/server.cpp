@@ -22,50 +22,62 @@
 #include <net/if.h>
 #include <unistd.h>
 #include <string.h>
+#include "camera_app_signals.h"
+#include "facedetect.h"
+#include "queue.h"
 
 using namespace cv;
+
+char userInput;
 
 typedef struct
 {
 	int dev;
 	int imgSize;
+	int time_sleep;
+	int face_detected;
+	bool face_detect_enable;
 	Mat img;
 	Mat imgGray;
-	VideoCapture *cap; // open the default camera
+	VideoCapture *cap;
+	CascadeClassifier cascade;
+	CascadeClassifier nestedCascade;
+
 } ImgCaptureStruct;
 
 
-typedef struct
+struct VideoStreamStruct
 {
 	int remoteSocket;
+	pthread_t thread_id;
 	ImgCaptureStruct *imgStruct;
-} VideoStream;
+	SLIST_ENTRY(VideoStreamStruct) entries;
+};
 
+typedef VideoStreamStruct VideoStream;
+
+void *get_user_input(void *ptr);
 void *display(void *);
 void *capture_video(void *);
 void setup_img(ImgCaptureStruct *);
 
+
 int main(int argc, char** argv)
 {
 
+    init_sigHandlers();
+
     //--------------------------------------------------------
-    //networking stuff: socket, bind, listen
+    // Setup network configuration settings: socket, bind, listen
     //--------------------------------------------------------
     int localSocket;
-    int remoteSocket;
     int port;
-
-    ImgCaptureStruct imgStruct;
-    imgStruct.dev = 0;
-    imgStruct.cap = new VideoCapture(imgStruct.dev);
-
-    port = *argv[1];
 
     struct  sockaddr_in localAddr,
                         remoteAddr;
 
+    pthread_t user_input_tid;
     pthread_t camera_processor_tid;
-    pthread_t thread_id;
     int addrLen = sizeof(struct sockaddr_in);
 
     if ( (argc > 1) && (strcmp(argv[1],"-h") == 0) ) {
@@ -77,7 +89,7 @@ int main(int argc, char** argv)
     }
 
 
-    if (argc == 2) port = atoi(argv[1]);
+    if (argc >= 2) port = atoi(argv[1]);
 
     localSocket = socket(AF_INET , SOCK_STREAM , 0);
     if (localSocket == -1){
@@ -86,12 +98,38 @@ int main(int argc, char** argv)
 
     localAddr.sin_family = AF_INET;
     localAddr.sin_addr.s_addr = INADDR_ANY;
-    localAddr.sin_port = htons(port);
+    localAddr.sin_port = htons(4099);
 
     if( bind(localSocket,(struct sockaddr *)&localAddr , sizeof(localAddr)) < 0) {
          perror("Can't bind() socket");
          exit(1);
     }
+
+
+    //-------------------------------------------------------
+    // Innitialize ImgCaptureStruct members 
+    //-------------------------------------------------------
+    ImgCaptureStruct imgStruct;
+    imgStruct.dev = 0;
+    imgStruct.time_sleep = atoi(argv[2]);
+    imgStruct.face_detected = 0;
+    imgStruct.face_detect_enable = false;
+    imgStruct.cap = new VideoCapture(imgStruct.dev);
+    userInput = 0;
+    endProgram = 0;
+
+
+    //-------------------------------------------------------
+    // Facial recognition setup
+    //-------------------------------------------------------
+    std::string cascadeName = "xml/haarcascade_frontalface_alt.xml";
+    std::string nestedCascadeName = "xml/haarcascade_eye_tree_eyeglasses.xml";
+    imgStruct.nestedCascade.load(samples::findFileOrKeep(nestedCascadeName));
+    imgStruct.cascade.load(samples::findFile(cascadeName));
+
+    std::cout << "Time Sleep: " << imgStruct.time_sleep << std::endl;
+
+
 
     //Listening
     listen(localSocket , 3);
@@ -102,29 +140,45 @@ int main(int argc, char** argv)
     setup_img(&imgStruct);
     // Create thread to capture image frames
     pthread_create(&camera_processor_tid, NULL, capture_video, &imgStruct);
+    pthread_create(&user_input_tid, NULL,  get_user_input, &imgStruct);
 
     //accept connection from an incoming client
-    while(1){
-    if (remoteSocket < 0) {
-        perror("accept failed!");
-        exit(1);
+    SLIST_HEAD(slisthead, VideoStreamStruct) head;
+    SLIST_INIT(&head);
+    VideoStream *videoStreamPtr;
+    int remoteSocket;
+    while(endProgram == 0)
+    {
+	remoteSocket = accept(localSocket, (struct sockaddr *)&remoteAddr, (socklen_t*)&addrLen);
+	if (remoteSocket < 0)
+	{
+	    perror("Socket accept failed!");
+	}
+	else
+	{
+	    // Conenction accepted. Create new display thread to handle connection
+	    std::cout << "Socket Connection accepted" << std::endl;
+	    videoStreamPtr = new VideoStream;
+	    videoStreamPtr->remoteSocket = remoteSocket;
+	    std::cout << "newVideoStream->remoteSocket: " << videoStreamPtr->remoteSocket << std::endl;
+	    videoStreamPtr->imgStruct = &imgStruct;
+	    SLIST_INSERT_HEAD(&head, videoStreamPtr, entries);
+	    pthread_create(&videoStreamPtr->thread_id, NULL, display, videoStreamPtr);
+	}
     }
-     VideoStream *newVideoStream = new VideoStream;
-     newVideoStream->remoteSocket = accept(localSocket, (struct sockaddr *)&remoteAddr, (socklen_t*)&addrLen);
-     newVideoStream->imgStruct = &imgStruct;
-      //std::cout << remoteSocket<< "32"<< std::endl;
-    if (remoteSocket < 0) {
-        perror("accept failed!");
-        exit(1);
-    }
-    std::cout << "Connection accepted" << std::endl;
-    pthread_create(&thread_id,NULL,display,newVideoStream);
 
-     //pthread_join(thread_id,NULL);
-
+    std::cout << "Joining main processing threads..." << std::endl;
+    pthread_join(camera_processor_tid,NULL);
+    pthread_join(user_input_tid,NULL);
+    std::cout << "Joining client display threads..." << std::endl;
+    while(!SLIST_EMPTY(&head))
+    {
+	videoStreamPtr = SLIST_FIRST(&head);
+	std::cout << "  - Joining thread_id: " << videoStreamPtr->thread_id << std::endl;
+	pthread_join(videoStreamPtr->thread_id, NULL);
+	SLIST_REMOVE_HEAD(&head, entries);
     }
-    //pthread_join(thread_id,NULL);
-    //close(remoteSocket);
+    close(localSocket);
 
     return 0;
 }
@@ -148,21 +202,54 @@ void setup_img(ImgCaptureStruct *imgStruct)
 		 "Image Size: " << imgStruct->imgSize << std::endl;
 }
 
+
+void *get_user_input(void *ptr)
+{
+
+	ImgCaptureStruct *imgStruct = (ImgCaptureStruct*) ptr;
+	while (endProgram == 0)
+	{
+		std::cin >> userInput;
+		if (userInput == 't')
+		{
+			imgStruct->face_detect_enable = !imgStruct->face_detect_enable;
+			userInput = 0;
+		}
+		else if (userInput == 'q')
+		{
+			std::cout << "Ending Program" << std::endl;
+			endProgram = 1;
+		}
+	}
+	std::cout << "Terminating UI Thread" << std::endl; 
+}
+
+
+
 // Thread function to write frames from /dev/video# to the ImgCaptureStruct img members
 // Logitech C270 webcam operates at max frame rate of 30 FPS
 void *capture_video(void *ptr)
 {
     // Obtain video structure attributes
     ImgCaptureStruct *imgStruct = (ImgCaptureStruct*) ptr;
-    while(1)
+    while(endProgram == 0)
     {
 	// Capture frames at 3x logitech C270 frame rate (i.e. ~(30 FPS * 3))
-	usleep(10000);
+	usleep(imgStruct->time_sleep);
 	// Capture frame
 	*(imgStruct->cap) >> imgStruct->img;
 	// Convert to greyscale
+
+	if (imgStruct->face_detect_enable)
+		detectAndDraw(imgStruct->img, imgStruct->cascade, imgStruct->nestedCascade, &imgStruct->face_detected);
 	cvtColor(imgStruct->img, imgStruct->imgGray, CV_BGR2GRAY);
+
+//	cv:waitKey(1);
+//      imshow("results", imgStruct->imgGray);
+	imgStruct->face_detected = 0;
     }
+    std::cout << "Terminating Video Capture Thread" << std::endl; 
+//    cv::destroyAllWindows();
 }
 
 // Thread function to send img
@@ -171,10 +258,10 @@ void *display(void *ptr)
     int bytes = 0;
     VideoStream *vStream = (VideoStream*) ptr;
     int socket = vStream->remoteSocket;
-
-    while(1)
+    std::cout << "Innitialized display thread ID: " << vStream->thread_id << std::endl;
+    while(endProgram == 0)
     {
-	usleep(30000);
+	usleep(vStream->imgStruct->time_sleep);
         //send current frame
 	if ((bytes = send(socket, vStream->imgStruct->imgGray.data, vStream->imgStruct->imgSize, 0)) < 0)
 	{
@@ -183,9 +270,8 @@ void *display(void *ptr)
         }
 	else
 	{
-	    std::cout << "Bytes Sent: " << bytes << std::endl;
+//	    std::cout << "Bytes Sent: " << bytes << std::endl;
 	}
     }
-
-return 0;
+    std::cout << "Terminating Display for Thread ID: " << vStream->thread_id << std::endl;
 }

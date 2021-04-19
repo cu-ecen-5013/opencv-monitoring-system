@@ -62,9 +62,11 @@ int main(int argc, char** argv)
           img = img.clone();
     }
 
+    int frameRate = atoi(argv[3]);
+
     std::cout << "Image Size:" << imgSize << std::endl;
     VideoWriter video;
-    video.open("outcpp.avi", CV_FOURCC('M','J','P','G'), 10, S, 0);
+    video.open("outcpp.avi", CV_FOURCC('M','J','P','G'), frameRate, S, 0);
 
     int fCount = 0;
     while (fCount < 100) {
