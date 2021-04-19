@@ -1,8 +1,19 @@
-/**
- * OpenCV video streaming over TCP/IP
- * Client: Receives video from server and display it
- * by Steve Tuenkam
- */
+  
+/**************************************************************************************************
+* @file        client.cpp
+* @version     0.1.1
+* @type:       OpenCV Video streaming socket application
+* @brief       OpenCV application that provides video stream to client requests.
+ 		  - Main Thread: Generate video stream and write image data to a global structure
+ 		  - Innitializes a socket connection to support client requests for video stream
+ 		  - Each client request is handled by a separate thread
+* @author      Julian Abbott-Whitley (julian.abbott-whitley@Colorado.edu)
+* @license:    GNU GPLv3   (attached below)
+*
+* @references: The following sources were referenced during development
+*              https://gist.github.com/Tryptich/2a15909e384b582c51b5
+*
+**************************************************************************************************/
 
 #include "opencv2/opencv.hpp"
 #include <sys/socket.h>
