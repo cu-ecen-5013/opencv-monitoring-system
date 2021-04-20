@@ -22,13 +22,18 @@
 #include <net/if.h>
 #include <unistd.h>
 #include <string.h>
-#include "camera_app_signals.h"
+#include <poll.h>
 #include "facedetect.h"
 #include "queue.h"
 
+
+
 using namespace cv;
 
+// Globals 
 char userInput;
+char endProgram;
+
 
 typedef struct
 {
@@ -65,7 +70,6 @@ void setup_img(ImgCaptureStruct *);
 int main(int argc, char** argv)
 {
 
-    init_sigHandlers();
 
     //--------------------------------------------------------
     // Setup network configuration settings: socket, bind, listen
@@ -80,7 +84,8 @@ int main(int argc, char** argv)
     pthread_t camera_processor_tid;
     int addrLen = sizeof(struct sockaddr_in);
 
-    if ( (argc > 1) && (strcmp(argv[1],"-h") == 0) ) {
+    if ( (argc > 1) && (strcmp(argv[1],"-h") == 0) ) 
+    {
           std::cerr << "usage: ./cv_video_srv [port] [capture device]\n" <<
                        "port           : socket port (4097 default)\n" <<
                        "capture device : (0 default)\n" << std::endl;
@@ -95,6 +100,10 @@ int main(int argc, char** argv)
     if (localSocket == -1){
          perror("socket() call failed!!");
     }
+
+    int enable = 1;
+    if (setsockopt(localSocket, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0)
+        perror("setsockopt(SO_REUSEADDR) failed");
 
     localAddr.sin_family = AF_INET;
     localAddr.sin_addr.s_addr = INADDR_ANY;
@@ -130,7 +139,6 @@ int main(int argc, char** argv)
     std::cout << "Time Sleep: " << imgStruct.time_sleep << std::endl;
 
 
-
     //Listening
     listen(localSocket , 3);
     std::cout <<  "Waiting for connections...\n"
@@ -147,24 +155,50 @@ int main(int argc, char** argv)
     SLIST_INIT(&head);
     VideoStream *videoStreamPtr;
     int remoteSocket;
+
+    // Utilize polling to check for incoming client connection
+    // Supports user input to gracefully terminate program execution without using SIGTERM
+    struct pollfd pfds[1];
+    pfds[0].fd = localSocket;
+    pfds[0].events = POLLIN;
+
     while(endProgram == 0)
     {
-	remoteSocket = accept(localSocket, (struct sockaddr *)&remoteAddr, (socklen_t*)&addrLen);
-	if (remoteSocket < 0)
-	{
-	    perror("Socket accept failed!");
-	}
-	else
-	{
-	    // Conenction accepted. Create new display thread to handle connection
-	    std::cout << "Socket Connection accepted" << std::endl;
-	    videoStreamPtr = new VideoStream;
-	    videoStreamPtr->remoteSocket = remoteSocket;
-	    std::cout << "newVideoStream->remoteSocket: " << videoStreamPtr->remoteSocket << std::endl;
-	    videoStreamPtr->imgStruct = &imgStruct;
-	    SLIST_INSERT_HEAD(&head, videoStreamPtr, entries);
-	    pthread_create(&videoStreamPtr->thread_id, NULL, display, videoStreamPtr);
-	}
+	    int num_events = poll(pfds, 1, 2500);
+	    if (num_events == 0)
+	    {
+	        printf("Poll timed out!\n");
+	    }
+	    else
+	    {
+	        int pollin_happened = pfds[0].revents & POLLIN;
+	        if (pollin_happened)
+		{
+	            printf("File descriptor %d is ready to read\n", pfds[0].fd);
+		    remoteSocket = accept(localSocket, (struct sockaddr *)&remoteAddr, (socklen_t*)&addrLen);
+
+	            if (remoteSocket < 0)
+		    {
+			    perror("No data on port...");
+		    }
+		    else
+		    {
+			    // Conenction accepted. Create new display thread to handle connection
+			    std::cout << "Socket Connection accepted" << std::endl;
+			    videoStreamPtr = new VideoStream;
+			    videoStreamPtr->remoteSocket = remoteSocket;
+			    std::cout << "newVideoStream->remoteSocket: " << videoStreamPtr->remoteSocket << std::endl;
+			    videoStreamPtr->imgStruct = &imgStruct;
+			    SLIST_INSERT_HEAD(&head, videoStreamPtr, entries);
+			    pthread_create(&videoStreamPtr->thread_id, NULL, display, videoStreamPtr);
+		    }
+
+	        }
+		else
+		{
+		    printf("Unexpected event occurred: %d\n", pfds[0].revents);
+		}
+	    }
     }
 
     std::cout << "Joining main processing threads..." << std::endl;
