@@ -13,7 +13,6 @@ gw = os.popen("ip -4 route show default").read().split()
 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 s.connect((gw[2], 0))
 HTML_IPADDR = s.getsockname()[0]
-#HTML_IPADDR = '127.0.0.1'
 HTML_PORT='5000'
 s.close()
 
@@ -38,10 +37,11 @@ def gen(vServer):
 
 @app.route('/video_feed')
 def video_feed():
-    return Response(gen(VideoCamera(LOCAL_HOST, LOCAL_PORT)),
+    video_feed = VideoCamera(LOCAL_HOST, LOCAL_PORT)
+    return Response(gen(video_feed),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
 
 
 if __name__ == '__main__':
     # defining server ip address and port
-    app.run(host=HTML_IPADDR,port=HTML_PORT, debug=True)
+    app.run(host=HTML_IPADDR,port=HTML_PORT, debug=False)

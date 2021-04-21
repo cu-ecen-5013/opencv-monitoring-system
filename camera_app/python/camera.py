@@ -2,6 +2,8 @@ import cv2
 import socket
 import sys
 import numpy as np
+import errno
+from socket import error as socket_error
 
 ds_factor=0.6
 
@@ -9,11 +11,17 @@ class VideoCamera(object):
 	def __init__(self, HOST, PORT):
 		#Setup socket connection
 		self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-		self.s.connect((HOST,PORT))
-
+		try:
+			self.s.connect((HOST,PORT))
+			print("Connection accepted")
+		except socket_error as serr:
+			if serr.errno != errno.ECONNREFUSED:
+				raise serr
+			print(serr.errno)
 	def __del__(self):
 		#releasing camera
-		self.video.release()
+		self.s.close()
+		print("Connection closed")
 
 	def get_data(self):
 		bytes = 0
