@@ -23,6 +23,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <poll.h>
+#include "camera_app_signals.h"
 #include "facedetect.h"
 #include "queue.h"
 
@@ -33,7 +34,6 @@ using namespace cv;
 // Globals 
 char userInput;
 char endProgram;
-
 
 typedef struct
 {
@@ -70,7 +70,7 @@ void setup_img(ImgCaptureStruct *);
 int main(int argc, char** argv)
 {
 
-
+    init_sigHandlers();
     //--------------------------------------------------------
     // Setup network configuration settings: socket, bind, listen
     //--------------------------------------------------------
@@ -176,7 +176,6 @@ int main(int argc, char** argv)
 		{
 	            printf("File descriptor %d is ready to read\n", pfds[0].fd);
 		    remoteSocket = accept(localSocket, (struct sockaddr *)&remoteAddr, (socklen_t*)&addrLen);
-
 	            if (remoteSocket < 0)
 		    {
 			    perror("No data on port...");
@@ -293,19 +292,56 @@ void *display(void *ptr)
     VideoStream *vStream = (VideoStream*) ptr;
     int socket = vStream->remoteSocket;
     std::cout << "Innitialized display thread ID: " << vStream->thread_id << std::endl;
+
+    char str[100];
+
+    struct pollfd pfds[1];
+    pfds[0].fd = socket;
+    pfds[0].events = POLLIN;
+
     while(endProgram == 0)
     {
-	usleep(vStream->imgStruct->time_sleep);
+	// Poll for 1000 ms
+	int num_events = poll(pfds, 1, 1000);
+	if (num_events == 0)
+	{
+	    printf("Poll timed out!\n");
+	}
+	else
+	{
+	    // Received data, handle input
+	    int pollin_happened = pfds[0].revents & POLLIN;
+	    if (pollin_happened)
+	    {
+		bytes = recv(socket, str, 10, MSG_WAITALL);
+	        if (bytes < 0)
+		{
+			perror("No data on port...");
+		}
+		else
+		{
+			std::cout << str << std::endl;
+		}
+ 	    }
+	    else
+	    {
+		printf("Unexpected event occurred: %d\n", pfds[0].revents);
+	    }
+	}
+
         //send current frame
 	if ((bytes = send(socket, vStream->imgStruct->imgGray.data, vStream->imgStruct->imgSize, 0)) < 0)
 	{
-            std::cerr << "bytes = " << bytes << std::endl;
-            break;
-        }
+	       std::cerr << "bytes = " << bytes << std::endl;
+	       break;
+	}
 	else
 	{
-//	    std::cout << "Bytes Sent: " << bytes << std::endl;
+	       std::cout << "Bytes Sent: " << bytes << std::endl;
 	}
+
     }
     std::cout << "Terminating Display for Thread ID: " << vStream->thread_id << std::endl;
 }
+
+

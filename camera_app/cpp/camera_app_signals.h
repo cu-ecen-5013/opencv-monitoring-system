@@ -2,13 +2,11 @@
 #include <sys/wait.h>
 #include <sys/types.h>
 
-char endProgram;
-
 // Handles SIGINT and SIGTERM
 // Used to close the stream_socket
 void intHandler(int sig)
 {
-    endProgram = true;
+    // No requirements currently
 }
 
 
