@@ -1,10 +1,179 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Home Surveillance</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='/app/static/styles.css') }}" />
+</head>
 <body>
+
+        <!--Jquery Cdn -->
+  <script src="https://code.jquery.com/jquery-3.5.1.js" 
+		  integrity="sha256-QWo7LDvxbWT2tbbQ97B53yJnYU3WhH/C8ycbRAkjPDc=" 
+          crossorigin="anonymous">
+  </script>
+
+<!--	<script src="https://code.jquery.com/jquery-git.js"></script>-->
+<!--	<meta charset="utf-8">-->
+<!--	<meta name="viewport" content="width=device-width">-->
+
+
+<h1>OpenCV Home Surveillance System</h1>
+<p>Description...</p>
+
 <div class="container">
     <div class="row">
         <div class="col-lg-8  offset-lg-2">
-            <h3 class="mt-5">Live Streaming Feed</h3>
-            <img src="{{ url_for('video_feed') }}" width="100%">
+            <h3 class="mt-5">Raspberry PI 1 Video Feed</h3>
+            <img src="{{ url_for('video_feed') }}" width="50%">
         </div>
     </div>
 </div>
+
+<div class="form_wrapper">
+    <form class="form-inline" method="post" id="FaceDetect">
+	<button name="FaceDetect" type="click" style="height:30px; width:115px" val=4>Face Detect</button>
+    </form>
+</div>
+
+<div class="form_wrapper">
+  <form class="form-inline" method="post" id="PauseVideo">
+	<button name="PauseVideo" type="click" style="height:30px; width:115px" val=4>Pause Video</button>
+  </form>
+</div>
+
+
+<div class="form_wrapper">
+  <form class="form-inline" method="post" id="RecordVideo">
+	<button name="RecordVideo" type="click" style="height:30px; width:115px" val=4>Record</button>
+  </form>
+</div>
+
+<!--<div class="form_wrapper">-->
+<form class="form-inline" method="post" id="FrameRate"> 
+	<select name="FrameRateOptions" style="height:30px; width:90px" id='FrameRateOptions'>
+		<option value="30">30 FPS</option>
+		<option value="20">20 FPS</option>
+		<option value="10">10 FPS</option>
+		<option value="5">5 FPS</option>
+		<option value="1">1 FPS</option>
+	</select>
+	<button name="SetFrameRate" type="submit" style="height:30px; width:115px" val=4>Enter</button>
+</form>
+<!--</div>-->
+
+
+  <script type="text/javascript">
+    $(document).on('click','#FaceDetect',function(e)
+                   {
+      console.log('FaceDetect');
+      e.preventDefault();
+      $.ajax({
+        type:'POST',
+        url:'/',
+        data:{
+          FaceDetect:-1
+        },
+        success:function()
+        {
+          alert("Face Detectection Toggled");
+        }
+      })
+    });
+  </script>
+
+
+  <script type="text/javascript">
+    $(document).on('click','#PauseVideo',function(e)
+                   {
+      console.log('PauseVideo');
+      e.preventDefault();
+      $.ajax({
+        type:'POST',
+        url:'/',
+        data:{
+          PauseVideo:-2
+        },
+        success:function()
+        {
+          alert("Video Stream Paused");
+        }
+      })
+    });
+  </script>
+
+  <script type="text/javascript">
+    $(document).on('click','#RecordVideo',function(e)
+                   {
+      console.log('RecordVideo');
+      e.preventDefault();
+      $.ajax({
+        type:'POST',
+        url:'/',
+        data:{
+          RecordVideo:-3
+        },
+        success:function()
+        {
+          alert("Recording Video");
+        }
+      })
+    });
+  </script>
+
+
+  <script type="text/javascript">
+    $(document).on('submit','#FrameRate',function(e)
+                   {
+      console.log('FrameRateOptions');
+      e.preventDefault();
+      $.ajax({
+        type:'POST',
+        url:'/',
+        data:{
+		  FrameRateOptions:$("#FrameRateOptions").val()
+        },
+      })
+    });
+  </script>
+
+
+<style>
+.form_wrapper {
+    width: 125px; /* the width of half of your space or 50% */
+    float: left;
+}
+
+<style/>
+
+  
 </body>
+</html>
+
+
+<!--<div class="form_wrapper">-->
+<!--    <form class="form-inline" method="post" id="form1">-->
+<!--      <label for="label1">Set Frame Rate:</label>-->
+<!--      <input type="text" name="text_input" id="text_input">-->
+<!--      <button id="button" type="submit">submit</button>-->
+<!--    </form>-->
+<!--</div>-->
+<!---->
+<!--  <script type="text/javascript">-->
+<!--    $(document).on('submit','#form1',function(e)-->
+<!--                   {-->
+<!--      console.log('textinput');-->
+<!--      e.preventDefault();-->
+<!--      $.ajax({-->
+<!--        type:'POST',-->
+<!--        url:'/',-->
+<!--        data:{-->
+<!--          text_input:$("#text_input").val()-->
+<!--        },-->
+<!--        success:function()-->
+<!--        {-->
+<!--          alert('saved');-->
+<!--        }-->
+<!--      })-->
+<!--    });-->
+<!--  </script>-->
+

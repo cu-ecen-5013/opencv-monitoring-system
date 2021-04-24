@@ -2,13 +2,19 @@
 #include <sys/wait.h>
 #include <sys/types.h>
 
+char endProgram;
+
 // Handles SIGINT and SIGTERM
 // Used to close the stream_socket
 void intHandler(int sig)
 {
-    // No requirements currently
+    endProgram = 1;
 }
 
+void pipeHandler(int sig)
+{
+
+}
 
 void sigchld_handler(int s)
 {
@@ -21,14 +27,17 @@ void sigchld_handler(int s)
 // Initialize signal handlers
 void init_sigHandlers()
 {
-
     struct sigaction sact;              //
+    struct sigaction sact_pipe;
+    memset (&sact, '\0', sizeof(sact_pipe));
     memset (&sact, '\0', sizeof(sact));
+    sact_pipe.sa_handler = pipeHandler;
+    sact_pipe.sa_flags = 1;
     sact.sa_handler = intHandler;       //
     sact.sa_flags = 1;                  //
     sigaction(SIGINT, &sact, NULL);     //
     sigaction(SIGTERM, &sact, NULL);
-    sigaction(SIGPIPE, &sact, NULL);
+    sigaction(SIGPIPE, &sact_pipe, NULL);
 
     struct sigaction sa;                //
     memset (&sa, '\0', sizeof(sa));

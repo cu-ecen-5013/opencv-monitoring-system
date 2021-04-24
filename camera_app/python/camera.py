@@ -23,6 +23,10 @@ class VideoCamera(object):
 		self.s.close()
 		print("Connection closed")
 
+	def send_data(self, data):
+		print("Send data: %s" % data)
+		self.s.send(bytes(data, encoding='utf8'))
+
 	def get_data(self):
 		bytes = 0
 		data_list = []
