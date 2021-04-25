@@ -1,0 +1,18 @@
+#! /bin/sh
+
+case "$1" in
+	start)
+		echo "Starting OpenCV Server"
+#		start-stop-daemon -S -x main.py -d ~/CU_Boulder/FINAL/opencv-monitoring-system/camera_app/python -- -d
+		start-stop-daemon -S -x /usr/bin/opencv/camera_app/python/main.py -b
+		;;
+	stop)
+                echo "Closing stream socket"
+#		start-stop-daemon -K -x main.py -d ~/CU_Boulder/FINAL/opencv-monitoring-system/camera_app/python
+		start-stop-daemon -K -x /usr/bin/opencv/camera_app/python/main.py
+        ;;
+	*)
+		echo "Usage: $0 {start|stop}"
+	exit 1
+esac
+exit 0

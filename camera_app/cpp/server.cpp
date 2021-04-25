@@ -1,20 +1,27 @@
 /**************************************************************************************************
 * @file        server.cpp
 * @version     0.1.1
-* @type:       OpenCV Video streaming socket application
+* @type:       OpenCV Video streaming socket application function implementation and 
+			   main application
 * @brief       OpenCV application that provides video stream to client requests.
- 		  - Main Thread: Generate video stream and write image data to a global structure
- 		  - Innitializes a socket connection to support client requests for video stream
- 		  - Each client request is handled by a separate thread
+		 		  - Main Thread: Generate video stream and write image data to a global structure
+ 				  - Innitializes a socket connection to support client requests for video stream
+ 				  - Each client request is handled by a separate thread
 * @author      Julian Abbott-Whitley (julian.abbott-whitley@Colorado.edu)
 * @license:    GNU GPLv3   (attached below)
 *
 * @references: The following sources were referenced during development
-*              https://gist.github.com/Tryptich/2a15909e384b582c51b5
+					- [OpenCV](https://github.com/opencv/)
+					- [OpenCV video streaming over TCP/IP (C++)](https://gist.github.com/Tryptich/2a15909e384b582c51b5)
+					- [Video Streaming using Python and Flask](https://github.com/log0/video_streaming_with_flask_example)
+					- [Python Socket Communication](https://stackoverflow.com/questions/30988033/sending-live-video-frame-over-network-in-python-opencv)
+					- [Beej's Guide to Network Programming](https://beej.us/guide/bgnet/html/#a-simple-stream-server)
+					- [Read, Write and Display a video using OpenCV](https://learnopencv.com/read-write-and-display-a-video-using-opencv-cpp-python/)
+					- [C++ videocapture-frames-through-socket](https://stackoverflow.com/questions/47881656/how-to-transfer-cvvideocapture-frames-through-socket-in-client-server-model-o)
+
 *
 **************************************************************************************************/
 
-#include "opencv2/opencv.hpp"
 #include <iostream>
 #include <sys/socket.h>
 #include <syslog.h>
@@ -24,54 +31,17 @@
 #include <unistd.h>
 #include <string.h>
 #include <poll.h>
-#include "camera_app_signals.h"
+#include "server.h"
 #include "facedetect.h"
-#include "queue.h"
+#include "camera_app_signals.h" 
 
-//#define DEBUG_LOG(...)
-#define DEBUG_LOG(msg,...) printf("[ DEBUG ] " msg "\n", ##__VA_ARGS__)
 
 using namespace cv;
 
-// Globals 
-
-typedef struct
-{
-	int dev;					// Camera device
-	int imgSize;				// Total size of image in bytes
-	float frame_rate;			// Frame rate to capture images
-	float time_sleep;			// Time to sleep in micro Seconds between each frame capture
-	int face_detected;			// Face detected flag
-	bool face_detect_enable;	// bool value to toggle face detection
-	bool pauseVideo;			// boolean to pause video feed
-	Mat img;
-	Mat imgGray;
-	VideoCapture *cap;
-	CascadeClassifier cascade;
-	CascadeClassifier nestedCascade;
-
-} ImgCaptureStruct;
-
-
-struct VideoStreamStruct
-{
-	int remoteSocket;
-	pthread_t thread_id;
-	bool thread_complete;
-	ImgCaptureStruct *imgStruct;
-	SLIST_ENTRY(VideoStreamStruct) entries;
-};
-
-typedef VideoStreamStruct VideoStream;
-
-//void *get_user_input(void *ptr);
-void *display(void *);
-void *capture_video(void *);
-void setup_img(ImgCaptureStruct *);
-
-
 int main(int argc, char** argv)
 {
+
+	syslog(LOG_DEBUG, "Starting OPENCV server");
 	// Initialize signal handlers
     init_sigHandlers();
 
@@ -80,23 +50,12 @@ int main(int argc, char** argv)
     //--------------------------------------------------------
     int localSocket;
     int port = 4099;	// Default port 4099
-//    if (argc >= 2) port = atoi(argv[1]);
 
     struct  sockaddr_in localAddr,
                         remoteAddr;
 
-//    pthread_t user_input_tid;
     pthread_t camera_processor_tid;
     int addrLen = sizeof(struct sockaddr_in);
-
-    if ( (argc > 1) && (strcmp(argv[1],"-h") == 0) ) 
-    {
-          std::cerr << "usage: ./cv_video_srv [port] [capture device]\n" <<
-                       "port           : socket port (4097 default)\n" <<
-                       "capture device : (0 default)\n" << std::endl;
-
-          exit(1);
-    }
 
     localSocket = socket(AF_INET , SOCK_STREAM , 0);
     if (localSocket == -1){
@@ -135,10 +94,19 @@ int main(int argc, char** argv)
     //-------------------------------------------------------
     // Facial recognition setup
     //-------------------------------------------------------
-    std::string cascadeName = "xml/haarcascade_frontalface_alt.xml";
-    std::string nestedCascadeName = "xml/haarcascade_eye_tree_eyeglasses.xml";
-    imgStruct.nestedCascade.load(samples::findFileOrKeep(nestedCascadeName));
-    imgStruct.cascade.load(samples::findFile(cascadeName));
+	const char *dev_arch = "x86_64";
+	dev_arch = getBuild();
+	if (dev_arch == "x86_64")
+	{
+	    imgStruct.nestedCascade.load(samples::findFileOrKeep("xml/haarcascade_eye_tree_eyeglasses.xml"));
+	    imgStruct.cascade.load(samples::findFile("xml/haarcascade_frontalface_alt.xml"));
+
+	}
+	else
+	{
+	    imgStruct.nestedCascade.load(samples::findFileOrKeep("/usr/bin/opencv/camera_app/cpp/xml/haarcascade_eye_tree_eyeglasses.xml"));
+	    imgStruct.cascade.load(samples::findFile("/usr/bin/opencv/camera_app/cpp/xml/haarcascade_frontalface_alt.xml"));
+	}
 
     // Listen, output status to both syslog and debug log
     listen(localSocket , 3);
@@ -148,7 +116,6 @@ int main(int argc, char** argv)
     setup_img(&imgStruct);
     // Create thread to capture image frames
     pthread_create(&camera_processor_tid, NULL, capture_video, &imgStruct);
-//    pthread_create(&user_input_tid, NULL,  get_user_input, &imgStruct);
 
     //accept connection from an incoming client
     SLIST_HEAD(slisthead, VideoStreamStruct) head;
@@ -172,10 +139,11 @@ int main(int argc, char** argv)
 	//		- Handle incoming client request with new thread
     while(endProgram == 0)
     {
+		DEBUG_LOG("TOP OF MAIN WHILE LOOP");
 	    int num_events = poll(pfds, 1, 2500);	// Poll for 2500 ms
 	    if (num_events == 0)
 	    {
-	        syslog(LOG_DEBUG, "Poll timed out!\n");
+	        DEBUG_LOG("Poll timed out, join stagnant threads");
 		    VideoStream *videoStreamPtr_TMP;
 		    SLIST_FOREACH_SAFE(videoStreamPtr, &head, entries, videoStreamPtr_TMP)
 		    {
@@ -188,26 +156,26 @@ int main(int argc, char** argv)
 			    	free(videoStreamPtr);
 		    	}
 		    }
-		    free(videoStreamPtr_TMP);
 	    }
 	    else
 	    {
+			DEBUG_LOG("CLIENT CONNECTION DETECTED");
 	        int pollin_happened = pfds[0].revents & POLLIN;
 	        if (pollin_happened)
 			{
-	            syslog(LOG_DEBUG, "File descriptor %d is ready to read\n", pfds[0].fd);
+	            DEBUG_LOG("File descriptor %d is ready to read\n", pfds[0].fd);
 		    	remoteSocket = accept(localSocket, (struct sockaddr *)&remoteAddr, (socklen_t*)&addrLen);
 	            if (remoteSocket < 0)
 		    	{
-			    	syslog(LOG_DEBUG, "No data on port...");
+			    	DEBUG_LOG("ERROR ACCEPTING SOCKET CONNECTION");
 		    	}
 		    	else
 		    	{
 			    	// Conenction accepted. Create new display thread to handle connection
-				    syslog(LOG_DEBUG, "Socket Connection accepted");
+				    DEBUG_LOG("Socket Connection accepted");
 				    videoStreamPtr = new VideoStream;
 				    videoStreamPtr->remoteSocket = remoteSocket;
-				    syslog(LOG_DEBUG, "newVideoStream->remoteSocket: %d", videoStreamPtr->remoteSocket);
+				    DEBUG_LOG("newVideoStream->remoteSocket: %d", videoStreamPtr->remoteSocket);
 				    videoStreamPtr->imgStruct = &imgStruct;
 				    SLIST_INSERT_HEAD(&head, videoStreamPtr, entries);
 				    pthread_create(&videoStreamPtr->thread_id, NULL, display, videoStreamPtr);
@@ -219,14 +187,13 @@ int main(int argc, char** argv)
 		    	syslog(LOG_DEBUG, "Unexpected event occurred: %d\n", pfds[0].revents);
 			}
 	    }
+		DEBUG_LOG("END OF MAIN WHILE LOOP\n");
     }
 
     // Cleanup
     DEBUG_LOG("Joining MAIN processing threads...");
     DEBUG_LOG("Joining Camera Processor thread: [%ld]", camera_processor_tid);
     pthread_join(camera_processor_tid, NULL);
-//    DEBUG_LOG("Joining user input thread: [%ld]", user_input_tiduser_input_tid);
-//    pthread_join(user_input_tid, NULL);
     DEBUG_LOG("Joining client display threads...");
     while(!SLIST_EMPTY(&head))
     {
@@ -237,6 +204,7 @@ int main(int argc, char** argv)
 	SLIST_REMOVE_HEAD(&head, entries);
     }
     close(localSocket);
+    syslog(LOG_DEBUG, "Closing OPENCV server");
     DEBUG_LOG("Ending MAIN: MAIN Thread ID [%ld]", pthread_self());
     return 0;
 }
@@ -260,29 +228,6 @@ void setup_img(ImgCaptureStruct *imgStruct)
     DEBUG_LOG("Image Setup Complete");
     DEBUG_LOG("Image Size: %d", imgStruct->imgSize);
 }
-
-
-//void *get_user_input(void *ptr)
-//{
-//	ImgCaptureStruct *imgStruct = (ImgCaptureStruct*) ptr;
-//	usleep(100000);
-//	while (endProgram == 0)
-//	{
-//		if (userInput == 0)
-//		{
-//			imgStruct->face_detect_enable = !imgStruct->face_detect_enable;
-//			userInput = 0;
-//		}
-//		else if (userInput == 'q')
-//		{
-//			DEBUG_LOG("Ending Program");
-//			endProgram = 1;
-//		}
-//	}
-//	DEBUG_LOG("Terminating UI Thread");
-//}
-
-
 
 // Thread function to write frames from /dev/video# to the ImgCaptureStruct img members
 // Logitech C270 webcam operates at max frame rate of 30 FPS
@@ -351,15 +296,15 @@ void *display(void *ptr)
 					case 0 :
 						break;
 					// Toggle face detection
-					case -1 :
+					case 100 :
 						vStream->imgStruct->face_detect_enable = !vStream->imgStruct->face_detect_enable;
 						break;
 					// Pause video
-					case -2 :
+					case 200 :
 						vStream->imgStruct->pauseVideo = !vStream->imgStruct->pauseVideo;
 						break;
 					// Record video
-					case -3 :
+					case 300 :
 						break;
 					// Frame Rate adjustment
 					default :
@@ -404,8 +349,3 @@ void *display(void *ptr)
 }
 
 
-//int* data_handler(Char *buf)
-//{
-//	
-//
-//}

@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 # main.py
 # import the necessary packages
 from flask import Flask, render_template, Response, request

@@ -31,7 +31,7 @@ CPPOBJS= ${CPPFILES:.cpp=.o}
 
 
 
-all:	server
+all: clean server
 
 clean:
 	-rm -f *.o *.d
