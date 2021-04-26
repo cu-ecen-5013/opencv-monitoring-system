@@ -2,18 +2,44 @@
 #include <sys/wait.h>
 #include <sys/types.h>
 
-char endProgram;
+char END_PROGRAM;
+char RECORD_VIDEO;
 
 // Handles SIGINT and SIGTERM
 // Used to close the stream_socket
 void intHandler(int sig)
 {
-    endProgram = 1;
+    END_PROGRAM = 1;
 }
 
-void pipeHandler(int sig)
-{
+void pipeHandler(int sig){}
 
+// Sig alarm triggered when count down reaches zero
+// Flips flag to write timestamp to AESDLOG
+void alarm_handler (int signum)
+{
+	RECORD_VIDEO = false;
+}
+
+// Innitialize timer for 0 interval
+// Initial delay time: <t> second
+void timer_init(int t)
+{
+	TRACE_LOG("TIMER INNITIALIZED");
+	struct itimerval delay;
+	int ret;
+	signal (SIGALRM, alarm_handler);
+	delay.it_value.tv_sec = t;
+	delay.it_value.tv_usec = 0;
+	delay.it_interval.tv_sec = 0;
+	delay.it_interval.tv_usec = 0;
+	ret = setitimer(ITIMER_REAL, &delay, NULL);
+	if (ret)
+	{
+		perror ("setitimer");
+		return;
+	}
+	return;
 }
 
 void sigchld_handler(int s)

@@ -18,8 +18,11 @@
 using namespace cv;
 
 //#define DEBUG_LOG(...)
-//#define DEBUG_LOG(msg,...) printf("[ DEBUG ] " msg "\n", ##__VA_ARGS__)
-#define DEBUG_LOG(msg,...) syslog(LOG_DEBUG, msg "\n", ##__VA_ARGS__)
+#define DEBUG_LOG(msg,...) printf("[ DEBUG ] " msg "\n", ##__VA_ARGS__)
+//#define DEBUG_LOG(msg,...) syslog(LOG_DEBUG, msg "\n", ##__VA_ARGS__)
+
+#define TRACE_LOG(...)
+//#define TRACE_LOG(msg,...) printf("[ TRACE ] " msg "\n", ##__VA_ARGS__)
 
 
 typedef struct
@@ -29,8 +32,12 @@ typedef struct
 	float frame_rate;           // Frame rate to capture images
 	float time_sleep;           // Time to sleep in micro Seconds between each frame capture
 	int face_detected;          // Face detected flag
-	bool face_detect_enable;    // bool value to toggle face detection
+	bool face_detect_enable;    // boolean value to toggle face detection
 	bool pauseVideo;            // boolean to pause video feed
+	int record_time;			// Amount of time to record video after a face is detected
+	bool manual_record;
+	char *write_dir;
+	int dir_name_size;
 	Mat img;
 	Mat imgGray;
 	VideoCapture *cap;
@@ -52,8 +59,9 @@ typedef VideoStreamStruct VideoStream;
 
 void *display(void *);
 void *capture_video(void *);
+void *record_video(void *);
 void setup_img(ImgCaptureStruct *);
-
+int get_local_time(char*, int);
 
 
 //
